@@ -1,0 +1,47 @@
+@DevOpsDemo_HostAddress = https://localhost:7098
+
+### Hent hele kataloget
+GET {{DevOpsDemo_HostAddress}}/api/books
+Accept: application/json
+
+### Hent en bog (id 1 findes i startdata)
+GET {{DevOpsDemo_HostAddress}}/api/books/1
+
+### Opret en bog: forvent 201 og en Location-header med det nye id
+POST {{DevOpsDemo_HostAddress}}/api/books
+Content-Type: application/json
+
+{
+  "title": "Min nye bog",
+  "author": "En forfatter",
+  "isRead": false
+}
+
+### PUT erstatter alle redigerbare oplysninger
+PUT {{DevOpsDemo_HostAddress}}/api/books/1
+Content-Type: application/json
+
+{
+  "title": "Den lille havfrue",
+  "author": "H. C. Andersen",
+  "isRead": true
+}
+
+### Slet bogen: forvent 204 uden JSON-indhold (genstart gendanner startdata)
+DELETE {{DevOpsDemo_HostAddress}}/api/books/1
+
+### Ukendt id: forvent 404 Problem Details
+GET {{DevOpsDemo_HostAddress}}/api/books/999999
+
+### Ugyldig titel: forvent 400 med valideringsfejl
+POST {{DevOpsDemo_HostAddress}}/api/books
+Content-Type: application/json
+
+{
+  "title": "   ",
+  "author": "En forfatter",
+  "isRead": false
+}
+
+### Health check til drift og Azure
+GET {{DevOpsDemo_HostAddress}}/health

@@ -1,0 +1,96 @@
+name: Bogkatalog - build, test og deploy
+
+# CI kører ved push og pull requests. workflow_dispatch giver en manuel startknap.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Kør ikke to deployments til samme branch samtidigt.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hent kildekoden
+        uses: actions/checkout@v4
+
+      - name: Installer .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Gendan NuGet-pakker
+        run: dotnet restore DevOpsDemo.slnx
+
+      - name: Byg hele løsningen
+        run: dotnet build DevOpsDemo.slnx --configuration Release --no-restore
+
+      # Test løsningen, ikke kun Web API-projektet! Release matcher build ovenfor.
+      # En fejlet test stopper jobbet, så deploy-jobbet ikke kan starte.
+      - name: Kør unit tests og integrationstests
+        run: dotnet test DevOpsDemo.slnx --configuration Release --no-build --no-restore
+
+      # Publish pakker kun appen. Den uploades endnu ikke til Azure.
+      - name: Pak Web API og frontend
+        run: dotnet publish DevOpsDemo/DevOpsDemo.csproj --configuration Release --no-build --no-restore --output ./publish
+
+      - name: Gem appen som artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bogkatalog-app
+          path: ./publish
+          if-no-files-found: error
+
+  deploy:
+    # needs betyder, at hele build-test-jobbet skal lykkes først.
+    needs: build-test
+    # Kun main deployer, aldrig pull requests. Azure er et aktivt tilvalg.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.ENABLE_AZURE_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC: GitHub kan anmode om en kortlivet Azure-adgang.
+    env:
+      AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Kontroller Azure-konfiguration
+        shell: bash
+        run: |
+          for name in AZURE_WEBAPP_NAME AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Repository-variablen $name mangler. Tilføj den under Settings > Secrets and variables > Actions > Variables."
+              exit 1
+            fi
+          done
+
+      - name: Hent den byggede app
+        uses: actions/download-artifact@v4
+        with:
+          name: bogkatalog-app
+          path: ./publish
+
+      # Ingen client secret, FTP-login eller publish profile gemmes i kildekoden.
+      - name: Log ind i Azure med OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy til Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: ./publish

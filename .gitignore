@@ -1,0 +1,16 @@
+# Lokale Visual Studio-filer og build-output skal ikke i et public repository.
+.vs/
+**/bin/
+**/obj/
+*.user
+*.suo
+TestResults/
+**/TestResults/
+publish/
+.publish/
+
+# Publish-profiler kan indeholde private deployment-oplysninger.
+**/Properties/PublishProfiles/
+*.pubxml.user
+.env
+.env.*
