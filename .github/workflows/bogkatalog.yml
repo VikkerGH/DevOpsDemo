@@ -3,9 +3,9 @@ name: Bogkatalog - build, test og deploy
 # CI kører ved push og pull requests. workflow_dispatch giver en manuel startknap.
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -53,8 +53,8 @@ jobs:
   deploy:
     # needs betyder, at hele build-test-jobbet skal lykkes først.
     needs: build-test
-    # Kun main deployer, aldrig pull requests. Azure er et aktivt tilvalg.
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.ENABLE_AZURE_DEPLOY == 'true'
+    # Kun master deployer, aldrig pull requests. Azure er et aktivt tilvalg.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && vars.ENABLE_AZURE_DEPLOY == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
